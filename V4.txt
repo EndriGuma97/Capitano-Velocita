@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/csv"
-	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -21,9 +20,6 @@ var tpl = template.Must(template.ParseFiles("index.html"))
 var data []scrapeResult
 var dataMutex sync.Mutex // To handle concurrent writes to the global data slice
 
-var clients = make(map[chan string]bool)
-var clientsMutex sync.Mutex
-
 type scrapeResult struct {
 	CompanyName   string
 	PhoneNumber   string
@@ -37,7 +33,6 @@ func main() {
 	http.HandleFunc("/", serveIndex)
 	http.HandleFunc("/search", handleSearch)
 	http.HandleFunc("/download", handleDownload)
-	http.HandleFunc("/events", handleEvents)
 	log.Println("Starting server on :8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -58,7 +53,7 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 	// Start scraping process
 	go startScraping(searchQuery)
 
-	// No need to write any response, as the page should not change
+	//fmt.Fprintf(w, "Started scraping for: %s. You can <a href=\"/download\">download the CSV</a> once it's complete.", searchQuery)
 }
 
 func startScraping(searchQuery string) {
@@ -84,10 +79,8 @@ func startScraping(searchQuery string) {
 
 	baseURL := "https://www.google.com/localservices/prolist?g2lbs=AIQllVxIHOWB2FeYgHr2lKln8lg04OMkqPj5SNnPXLWWA9EFJayNguM4iiWDR3qgSPtlui5NHLmRxmN-BfoFiY9MdJmjWI5vcICS61nQQDDBnSM2Kdv8DzteKsW9QZdIOeB2p3pm1J4m&hl=en-AL&gl=al&ssta=1&oq=&src=2&sa=X&scp=CgASABoAKgA%3D&q=" + searchQuery + "&ved=0CAUQjdcJahgKEwiw6c7CqJWGAxUAAAAAHQAAAAAQvwE&slp=MgBAAVIECAIgAIgBAJoBBgoCFxkQAA%3D%3D"
 
-	/*IMPORTANT*/
 	//lciValues := []string{"", "20", "40", "60", "80"} // Add more values if needed
-
-	lciValues := []string{""} // Add more values if needed
+	lciValues := []string{"", "20", "40"}
 
 	for _, lci := range lciValues {
 		searchURL := baseURL
@@ -96,9 +89,6 @@ func startScraping(searchQuery string) {
 		}
 		scrapeURL(driver, searchURL)
 	}
-
-	// Notify all clients that the scraping is done
-	notifyClients("Information has been downloaded")
 }
 
 func scrapeURL(driver selenium.WebDriver, searchURL string) {
@@ -221,8 +211,6 @@ func extractEmailAndInstagramFromWebsite(driver selenium.WebDriver, url string) 
 	return email, instagram
 }
 
-
-///Change the order of this Email should go first
 func handleDownload(w http.ResponseWriter, r *http.Request) {
 	dataMutex.Lock()
 	defer dataMutex.Unlock()
@@ -241,7 +229,7 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	defer writer.Flush()
 
 	// Write header
-	writer.Write([]string{"Company Name", "Phone Number", "Email", "Instagram Link", "Website Link", "Company Type",})
+	writer.Write([]string{"Company Name", "Phone Number","Email", "Instagram Link","Website Link", "Company Type" })
 
 	// Write data
 	for _, record := range data {
@@ -253,60 +241,5 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 			record.WebsiteLink,
 			record.CompanyType,
 		})
-	}
-}
-
-func handleEvents(w http.ResponseWriter, r *http.Request) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
-		return
-	}
-
-	// Set the headers related to event streaming.
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-
-	// Create a channel for this client and add it to the map
-	messageChan := make(chan string)
-	clientsMutex.Lock()
-	clients[messageChan] = true
-	clientsMutex.Unlock()
-
-	// Ensure that when we finish, we remove the client's channel
-	defer func() {
-		clientsMutex.Lock()
-		delete(clients, messageChan)
-		clientsMutex.Unlock()
-		close(messageChan)
-	}()
-
-	// Listen to the client's connection until it is closed
-	notify := w.(http.CloseNotifier).CloseNotify()
-	go func() {
-		<-notify
-		clientsMutex.Lock()
-		delete(clients, messageChan)
-		clientsMutex.Unlock()
-		close(messageChan)
-	}()
-
-	// Send messages to the client
-	for {
-		msg, open := <-messageChan
-		if !open {
-			break
-		}
-		fmt.Fprintf(w, "data: %s\n\n", msg)
-		flusher.Flush()
-	}
-}
-
-func notifyClients(message string) {
-	clientsMutex.Lock()
-	defer clientsMutex.Unlock()
-	for client := range clients {
-		client <- message
 	}
 }

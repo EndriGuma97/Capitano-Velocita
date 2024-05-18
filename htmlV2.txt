@@ -91,17 +91,6 @@
           transform: rotate(360deg);
         }
       }
-      .notification {
-        display: none;
-        background-color: #333333;
-        color: #ffffff;
-        padding: 1em;
-        border-radius: 5px;
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 1000;
-      }
     </style>
   </head>
   <body>
@@ -124,6 +113,7 @@
           <option value="20">20</option>
           <option value="40">40</option>
           <option value="80">80</option>
+          <option value="80">100</option>
           <option value="100+">150+</option>
         </select>
         <button type="submit">Cerca</button>
@@ -131,7 +121,6 @@
       <div class="spinner-container">
         <div class="spinner" id="spinner"></div>
       </div>
-      <div class="notification" id="notification">Informazioni scaricate</div>
     </div>
     <script>
       document
@@ -145,33 +134,21 @@
             body: formData,
           })
             .then((response) => {
+              // Handle response if needed
               console.log("Search started");
+              // Hide the spinner if you want to do something after the response
+              // hideSpinner();
             })
             .catch((error) => {
               console.error("Error:", error);
+              // Optionally hide the spinner in case of error
+              // hideSpinner();
             });
         });
 
       function showSpinner() {
         document.getElementById("spinner").style.display = "block";
       }
-
-      function showNotification() {
-        const notification = document.getElementById("notification");
-        notification.style.display = "block";
-        setTimeout(() => {
-          notification.style.display = "none";
-        }, 5000);
-      }
-
-      // Setup EventSource to listen for server-sent events
-      const eventSource = new EventSource("/events");
-      eventSource.onmessage = function (event) {
-        console.log("Event received:", event.data);
-        showNotification();
-        // Optionally, hide the spinner if you want
-        document.getElementById("spinner").style.display = "none";
-      };
     </script>
   </body>
 </html>
