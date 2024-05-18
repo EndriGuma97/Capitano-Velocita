@@ -1,0 +1,39 @@
+/*
+func handleDownload(w http.ResponseWriter, r *http.Request) {
+	dataMutex.Lock()
+	defer dataMutex.Unlock()
+
+	if len(data) == 0 {
+		http.Error(w, "No data available", http.StatusNoContent)
+		return
+	}
+
+	file, err := os.Create("output.csv")
+	if err != nil {
+		http.Error(w, "Error creating CSV file", http.StatusInternalServerError)
+		return
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write header
+	writer.Write([]string{"Company Name", "Phone Number", "Website Link", "Company Type", "Email", "Instagram Link"})
+
+	// Write data
+	for _, record := range data {
+		writer.Write([]string{
+			record.CompanyName,
+			record.PhoneNumber,
+			record.WebsiteLink,
+			record.CompanyType,
+			record.Email,
+			record.InstagramLink,
+		})
+	}
+
+	// Serve the file for download
+	http.ServeFile(w, r, "output.csv")
+}
+*/

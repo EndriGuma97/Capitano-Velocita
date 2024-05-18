@@ -1,0 +1,145 @@
+// C:/Users/user/OneDrive/Desktop/chromedriver-win64/chromedriver
+package main
+
+import (
+	"fmt"
+	"log"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/PuerkitoBio/goquery"
+	"github.com/tebeka/selenium"
+	"github.com/tebeka/selenium/chrome"
+)
+
+var firstButton = true
+
+func main() {
+	// specify the path to your chromedriver executable
+	const chromeDriverPath = "C:/Users/user/OneDrive/Desktop/chromedriver-win64/chromedriver" // update this path if necessary
+
+	// initialize a Chrome browser instance on port 4444
+	service, err := selenium.NewChromeDriverService(chromeDriverPath, 4444)
+	if err != nil {
+		log.Fatal("Error starting the ChromeDriver server:", err)
+	}
+	defer service.Stop()
+
+	// configure the browser options
+	caps := selenium.Capabilities{}
+	chromeCaps := chrome.Capabilities{
+		Args: []string{"--headless"},
+	}
+	caps.AddChrome(chromeCaps)
+
+	// create a new remote client with the specified options
+	driver, err := selenium.NewRemote(caps, "")
+	if err != nil {
+		log.Fatal("Error creating new WebDriver session:", err)
+	}
+	defer driver.Quit()
+
+	driver.Get("https://www.google.com/localservices/prolist?g2lbs=AIQllVxIHOWB2FeYgHr2lKln8lg04OMkqPj5SNnPXLWWA9EFJayNguM4iiWDR3qgSPtlui5NHLmRxmN-BfoFiY9MdJmjWI5vcICS61nQQDDBnSM2Kdv8DzteKsW9QZdIOeB2p3pm1J4m&hl=en-AL&gl=al&ssta=1&oq=gutter%20cleaning%20kelowna&src=2&sa=X&scp=CgASABoAKgA%3D&q=Tourism%20and%20Travel%20Agencies%20Florence%20Italy&ved=0CAUQjdcJahgKEwiw6c7CqJWGAxUAAAAAHQAAAAAQvwE&slp=MgBAAVIECAIgAIgBAJoBBgoCFxkQAA%3D%3D")
+	driver.MaximizeWindow("")
+
+	for i := 0; i < 21; i++ {
+		pageElements, err := driver.FindElements(selenium.ByXPATH, `/html/body/c-wiz/div/div[3]/div/div/div[1]/div[3]/div[3]/c-wiz/div/div/div[1]/c-wiz/div`)
+		if err != nil {
+			log.Println("Error finding elements:", err)
+			continue
+		}
+
+		if len(pageElements) > 0 {
+			textContent, err := pageElements[0].GetAttribute("innerHTML")
+			if err != nil {
+				log.Println("Error getting innerHTML:", err)
+				continue
+			}
+
+			doc, err := goquery.NewDocumentFromReader(strings.NewReader(textContent))
+			if err != nil {
+				log.Println("Error parsing HTML:", err)
+				continue
+			}
+
+			doc.Find("div[data-test-id='organic-list-card']").Each(func(_ int, s *goquery.Selection) {
+				companyName := s.Find("div.rgnuSb.xYjf2e").Text()
+				phoneNumber, _ := s.Find("a[data-phone-number]").Attr("data-phone-number")
+				websiteLink, _ := s.Find("a[aria-label='Website']").Attr("href")
+				companyType := s.Find("span.hGz87c").Text()
+
+				email, instagram := "", ""
+				if websiteLink != "" {
+					email, instagram = extractEmailAndInstagramFromWebsite(driver, websiteLink)
+				}
+
+				fmt.Printf("%s,%s,%s,%s,%s,%s\n", companyName, phoneNumber, websiteLink, companyType, email, instagram)
+			})
+
+			time.Sleep(2 * time.Second)
+			var nextPageButtonXPath string
+			if firstButton {
+				nextPageButtonXPath = `/html/body/c-wiz/div/div[3]/div/div/div[1]/div[3]/div[3]/c-wiz/div/div/div[2]/div/div/button/span`
+				firstButton = false
+			} else {
+				nextPageButtonXPath = `/html/body/c-wiz/div/div[3]/div/div/div[1]/div[3]/div[3]/c-wiz/div/div/div[2]/div[2]/div/button/span`
+			}
+
+			nextButton, err := driver.FindElement(selenium.ByXPATH, nextPageButtonXPath)
+			if err != nil {
+				log.Println("Error finding next page button:", err)
+				continue
+			}
+
+			if err := nextButton.Click(); err != nil {
+				log.Println("Error clicking next page button:", err)
+				continue
+			}
+		}
+	}
+}
+
+func extractEmailAndInstagramFromWebsite(driver selenium.WebDriver, url string) (string, string) {
+	email, instagram := "", ""
+	err := driver.Get(url)
+	if err != nil {
+		log.Println("Error loading URL:", err)
+		return "", ""
+	}
+
+	time.Sleep(2 * time.Second)
+
+	pageSource, err := driver.PageSource()
+	if err != nil {
+		log.Println("Error getting page source:", err)
+		return "", ""
+	}
+
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(pageSource))
+	if err != nil {
+		log.Println("Error parsing page source:", err)
+		return "", ""
+	}
+
+	doc.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
+		href, _ := s.Attr("href")
+		if strings.Contains(href, "mailto:") {
+			email = strings.TrimPrefix(href, "mailto:")
+			return
+		} else if strings.Contains(href, "instagram.com") {
+			instagram = href
+			return
+		}
+	})
+
+	if email == "" {
+		emailRegex := regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,7}`)
+		emailMatch := emailRegex.FindString(doc.Text())
+		if emailMatch != "" {
+			email = emailMatch
+		}
+	}
+
+	return email, instagram
+}
