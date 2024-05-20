@@ -31,6 +31,8 @@ type scrapeResult struct {
 	CompanyType   string
 	Email         string
 	InstagramLink string
+	LinkedInLink  string
+	DirectionsLink string
 }
 
 func main() {
@@ -85,9 +87,8 @@ func startScraping(searchQuery string) {
 	baseURL := "https://www.google.com/localservices/prolist?g2lbs=AIQllVxIHOWB2FeYgHr2lKln8lg04OMkqPj5SNnPXLWWA9EFJayNguM4iiWDR3qgSPtlui5NHLmRxmN-BfoFiY9MdJmjWI5vcICS61nQQDDBnSM2Kdv8DzteKsW9QZdIOeB2p3pm1J4m&hl=en-AL&gl=al&ssta=1&oq=&src=2&sa=X&scp=CgASABoAKgA%3D&q=" + searchQuery + "&ved=0CAUQjdcJahgKEwiw6c7CqJWGAxUAAAAAHQAAAAAQvwE&slp=MgBAAVIECAIgAIgBAJoBBgoCFxkQAA%3D%3D"
 
 	/*IMPORTANT*/
-	lciValues := []string{"", "20", "40", "60", "80", "100", "120", "140", "160", "180"} // Add more values if needed
-
-	//lciValues := []string{""} // Add more values if needed
+	//lciValues := []string{"", "20", "40", "60", "80", "100", "120", "140", "160", "180"} // Add more values if needed
+	lciValues := []string{""} // Add more values if needed
 
 	for _, lci := range lciValues {
 		searchURL := baseURL
@@ -135,10 +136,11 @@ func scrapeURL(driver selenium.WebDriver, searchURL string) {
 			phoneNumber, _ := s.Find("a[data-phone-number]").Attr("data-phone-number")
 			websiteLink, _ := s.Find("a[aria-label='Website']").Attr("href")
 			companyType := s.Find("span.hGz87c").Text()
+			directionsLink, _ := s.Find("a[aria-label='Directions']").Attr("href")
 
-			email, instagram := "", ""
+			email, instagram, linkedin := "", "", ""
 			if websiteLink != "" {
-				email, instagram = extractEmailAndInstagramFromWebsite(driver, websiteLink)
+				email, instagram, linkedin = extractContactsFromWebsite(driver, websiteLink)
 			}
 
 			result := scrapeResult{
@@ -148,6 +150,8 @@ func scrapeURL(driver selenium.WebDriver, searchURL string) {
 				CompanyType:   companyType,
 				Email:         email,
 				InstagramLink: instagram,
+				LinkedInLink:  linkedin,
+				DirectionsLink: directionsLink,
 			}
 
 			dataMutex.Lock()
@@ -177,12 +181,12 @@ func scrapeURL(driver selenium.WebDriver, searchURL string) {
 	}
 }
 
-func extractEmailAndInstagramFromWebsite(driver selenium.WebDriver, url string) (string, string) {
-	email, instagram := "", ""
+func extractContactsFromWebsite(driver selenium.WebDriver, url string) (string, string, string) {
+	email, instagram, linkedin := "", "", ""
 	err := driver.Get(url)
 	if err != nil {
 		log.Println("Error loading URL:", err)
-		return "", ""
+		return "", "", ""
 	}
 
 	time.Sleep(2 * time.Second)
@@ -190,23 +194,23 @@ func extractEmailAndInstagramFromWebsite(driver selenium.WebDriver, url string) 
 	pageSource, err := driver.PageSource()
 	if err != nil {
 		log.Println("Error getting page source:", err)
-		return "", ""
+		return "", "", ""
 	}
 
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(pageSource))
 	if err != nil {
 		log.Println("Error parsing page source:", err)
-		return "", ""
+		return "", "", ""
 	}
 
 	doc.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
 		href, _ := s.Attr("href")
 		if strings.Contains(href, "mailto:") {
 			email = strings.TrimPrefix(href, "mailto:")
-			return
 		} else if strings.Contains(href, "instagram.com") {
 			instagram = href
-			return
+		} else if strings.Contains(href, "linkedin.com") {
+			linkedin = href
 		}
 	})
 
@@ -218,11 +222,9 @@ func extractEmailAndInstagramFromWebsite(driver selenium.WebDriver, url string) 
 		}
 	}
 
-	return email, instagram
+	return email, instagram, linkedin
 }
 
-
-///Change the order of this Email should go first
 func handleDownload(w http.ResponseWriter, r *http.Request) {
 	dataMutex.Lock()
 	defer dataMutex.Unlock()
@@ -241,7 +243,7 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	defer writer.Flush()
 
 	// Write header
-	writer.Write([]string{"Company Name", "Phone Number", "Email", "Instagram Link", "Website Link", "Company Type",})
+	writer.Write([]string{"Company Name", "Phone Number", "Email", "Instagram Link", "LinkedIn Link", "Website Link", "Company Type", "Directions Link"})
 
 	// Write data
 	for _, record := range data {
@@ -250,8 +252,10 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 			record.PhoneNumber,
 			record.Email,
 			record.InstagramLink,
+			record.LinkedInLink,
 			record.WebsiteLink,
 			record.CompanyType,
+			record.DirectionsLink,
 		})
 	}
 }
