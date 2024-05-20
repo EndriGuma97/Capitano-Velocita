@@ -85,9 +85,9 @@ func startScraping(searchQuery string) {
 	baseURL := "https://www.google.com/localservices/prolist?g2lbs=AIQllVxIHOWB2FeYgHr2lKln8lg04OMkqPj5SNnPXLWWA9EFJayNguM4iiWDR3qgSPtlui5NHLmRxmN-BfoFiY9MdJmjWI5vcICS61nQQDDBnSM2Kdv8DzteKsW9QZdIOeB2p3pm1J4m&hl=en-AL&gl=al&ssta=1&oq=&src=2&sa=X&scp=CgASABoAKgA%3D&q=" + searchQuery + "&ved=0CAUQjdcJahgKEwiw6c7CqJWGAxUAAAAAHQAAAAAQvwE&slp=MgBAAVIECAIgAIgBAJoBBgoCFxkQAA%3D%3D"
 
 	/*IMPORTANT*/
-	//lciValues := []string{"", "20", "40", "60", "80"} // Add more values if needed
+	lciValues := []string{"", "20", "40", "60", "80", "100", "120", "140", "160", "180"} // Add more values if needed
 
-	lciValues := []string{""} // Add more values if needed
+	//lciValues := []string{""} // Add more values if needed
 
 	for _, lci := range lciValues {
 		searchURL := baseURL
